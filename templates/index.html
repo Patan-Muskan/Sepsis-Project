@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sepsis Risk Prediction - Clinical Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Sticky Header -->
+    <header class="sticky-header">
+        <div class="header-container">
+            <div class="header-content">
+                <div class="header-title">
+                    <i class="fas fa-heartbeat"></i>
+                    <h1 class="animated-title">Sepsis Risk Prediction</h1>
+                </div>
+                <p class="animated-subtitle">AI-Powered Clinical Risk Assessment Dashboard</p>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="content-wrapper">
+            <!-- Form Section -->
+            <form id="predictionForm" action="/predict" method="post" class="medical-form">
+                <!-- Vital Signs Section -->
+                <section class="form-card">
+                    <div class="card-header">
+                        <i class="fas fa-heartbeat"></i>
+                        <h2>Vital Signs</h2>
+                    </div>
+                    <div class="form-grid">
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-heart"></i></div>
+                            <div class="input-field">
+                                <label>Heart Rate</label>
+                                <input class="form-control" type="number" name="HR" min="0" max="250" step="0.01" placeholder="60-100 bpm">
+                                <span class="input-hint">60-100 bpm</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-wind"></i></div>
+                            <div class="input-field">
+                                <label>O₂ Saturation</label>
+                                <input class="form-control" type="number" name="O2Sat" min="0" step="0.01" max="100" placeholder=">95%">
+                                <span class="input-hint">>95%</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-thermometer-half"></i></div>
+                            <div class="input-field">
+                                <label>Temperature</label>
+                                <input class="form-control" type="number" name="Temp" min="0" max="42" step="0.01" placeholder="36.5-37.5°C">
+                                <span class="input-hint">36.5-37.5°C</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-arrow-up"></i></div>
+                            <div class="input-field">
+                                <label>Systolic BP</label>
+                                <input class="form-control" type="number" name="SBP" min="0" max="300" step="0.01" placeholder="90-120 mmHg">
+                                <span class="input-hint">90-120 mmHg</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-gauge"></i></div>
+                            <div class="input-field">
+                                <label>Mean Arterial Pressure</label>
+                                <input class="form-control" type="number" name="MAP" min="0" max="200" step="0.01" placeholder="70-100 mmHg">
+                                <span class="input-hint">70-100 mmHg</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-arrow-down"></i></div>
+                            <div class="input-field">
+                                <label>Diastolic BP</label>
+                                <input class="form-control" type="number" name="DBP" min="0" max="150" step="0.01" placeholder="60-80 mmHg">
+                                <span class="input-hint">60-80 mmHg</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-lungs"></i></div>
+                            <div class="input-field">
+                                <label>Respiration Rate</label>
+                                <input class="form-control" type="number" name="Resp" min="0" max="100" step="0.01" placeholder="12-20 breaths/min">
+                                <span class="input-hint">12-20 breaths/min</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Laboratory Values Section -->
+                <section class="form-card">
+                    <div class="card-header">
+                        <i class="fas fa-flask"></i>
+                        <h2>Laboratory Values</h2>
+                    </div>
+                    <div class="form-grid">
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-test"></i></div>
+                            <div class="input-field">
+                                <label>Base Excess</label>
+                                <input class="form-control" type="number" name="BaseExcess" min="-15" max="15" step="0.01" placeholder="-3 to +3 mmol/L">
+                                <span class="input-hint">-3 to +3 mmol/L</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-droplet"></i></div>
+                            <div class="input-field">
+                                <label>Bicarbonate (HCO₃)</label>
+                                <input class="form-control" type="number" name="HCO3" min="8" max="40" step="0.01" placeholder="22-26 mmol/L">
+                                <span class="input-hint">22-26 mmol/L</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-percent"></i></div>
+                            <div class="input-field">
+                                <label>FiO₂</label>
+                                <input class="form-control" type="number" name="FiO2" min="0" step="0.01" max="100" placeholder="21% room air">
+                                <span class="input-hint">21-100%</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-gauge"></i></div>
+                            <div class="input-field">
+                                <label>PaCO₂</label>
+                                <input class="form-control" type="number" name="PaCO2" min="15" max="90" step="0.01" placeholder="35-45 mmHg">
+                                <span class="input-hint">35-45 mmHg</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-wind"></i></div>
+                            <div class="input-field">
+                                <label>SaO₂</label>
+                                <input class="form-control" type="number" name="SaO2" min="0" step="0.01" max="100" placeholder=">95%">
+                                <span class="input-hint">>95%</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-flask"></i></div>
+                            <div class="input-field">
+                                <label>Creatinine</label>
+                                <input class="form-control" type="number" name="Creatinine" min="0.3" max="8" step="0.01" placeholder="0.7-1.3 mg/dL">
+                                <span class="input-hint">0.7-1.3 mg/dL</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-vial"></i></div>
+                            <div class="input-field">
+                                <label>Bilirubin Direct</label>
+                                <input class="form-control" type="number" name="Bilirubin_direct" min="0" max="5" step="0.01" placeholder="0.0-0.3 mg/dL">
+                                <span class="input-hint">0.0-0.3 mg/dL</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-candy"></i></div>
+                            <div class="input-field">
+                                <label>Glucose</label>
+                                <input class="form-control" type="number" name="Glucose" min="40" max="500" step="0.01" placeholder="70-100 mg/dL">
+                                <span class="input-hint">70-100 mg/dL</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-droplet-slash"></i></div>
+                            <div class="input-field">
+                                <label>Lactate</label>
+                                <input class="form-control" type="number" name="Lactate" min="0.3" max="20" step="0.01" placeholder="0.5-2.0 mmol/L">
+                                <span class="input-hint">0.5-2.0 mmol/L</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-magnet"></i></div>
+                            <div class="input-field">
+                                <label>Magnesium</label>
+                                <input class="form-control" type="number" name="Magnesium" min="0.5" max="4.5" step="0.01" placeholder="1.7-2.2 mg/dL">
+                                <span class="input-hint">1.7-2.2 mg/dL</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-circle"></i></div>
+                            <div class="input-field">
+                                <label>Phosphate</label>
+                                <input class="form-control" type="number" name="Phosphate" min="0.5" max="10" step="0.01" placeholder="2.5-4.5 mg/dL">
+                                <span class="input-hint">2.5-4.5 mg/dL</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-vial"></i></div>
+                            <div class="input-field">
+                                <label>Bilirubin Total</label>
+                                <input class="form-control" type="number" name="Bilirubin_total" min="0" max="8" step="0.01" placeholder="0.1-1.2 mg/dL">
+                                <span class="input-hint">0.1-1.2 mg/dL</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-blood"></i></div>
+                            <div class="input-field">
+                                <label>Hemoglobin</label>
+                                <input class="form-control" type="number" name="Hgb" min="4" max="25" step="0.01" placeholder="13.5-17.5 g/dL">
+                                <span class="input-hint">13.5-17.5 g/dL</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-virus"></i></div>
+                            <div class="input-field">
+                                <label>White Blood Cells</label>
+                                <input class="form-control" type="number" name="WBC" min="1" max="150" step="0.01" placeholder="4.5-11 K/µL">
+                                <span class="input-hint">4.5-11 K/µL</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-link"></i></div>
+                            <div class="input-field">
+                                <label>Fibrinogen</label>
+                                <input class="form-control" type="number" name="Fibrinogen" min="50" max="800" step="0.01" placeholder="200-400 mg/dL">
+                                <span class="input-hint">200-400 mg/dL</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-coins"></i></div>
+                            <div class="input-field">
+                                <label>Platelets</label>
+                                <input class="form-control" type="number" name="Platelets" min="10" max="800" step="0.01" placeholder="150-400 K/µL">
+                                <span class="input-hint">150-400 K/µL</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Demographics Section -->
+                <section class="form-card">
+                    <div class="card-header">
+                        <i class="fas fa-user"></i>
+                        <h2>Patient Demographics</h2>
+                    </div>
+                    <div class="form-grid">
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-birthday-cake"></i></div>
+                            <div class="input-field">
+                                <label>Age</label>
+                                <input class="form-control" type="number" name="Age" placeholder="Enter age (100 for >90)" min="0" step="0.01">
+                                <span class="input-hint">Years of age</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-person"></i></div>
+                            <div class="input-field">
+                                <label>Gender</label>
+                                <input class="form-control" type="number" name="Gender" placeholder="0=Female, 1=Male" min="0" step="1" max="1">
+                                <span class="input-hint">0=Female, 1=Male</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-clock"></i></div>
+                            <div class="input-field">
+                                <label>Hospital to ICU</label>
+                                <input class="form-control" type="number" name="HospAdmTime" placeholder="Hours" min="0" max="999" step="0.01">
+                                <span class="input-hint">Hours (positive)</span>
+                            </div>
+                        </div>
+
+                        <div class="input-group-card">
+                            <div class="input-icon"><i class="fas fa-hourglass-end"></i></div>
+                            <div class="input-field">
+                                <label>ICU Length of Stay</label>
+                                <input class="form-control" type="number" name="ICULOS" placeholder="Hours in ICU" min="0" max="999" step="0.01">
+                                <span class="input-hint">Hours in ICU (positive)</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Action Buttons -->
+                <div class="button-group">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-stethoscope"></i> Predict Sepsis Risk
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="generateRandomValues()">
+                        <i class="fas fa-dice"></i> Generate Random Values
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="resetForm()">
+                        <i class="fas fa-redo"></i> Clear Form
+                    </button>
+                </div>
+            </form>
+
+            <!-- Loading Spinner -->
+            <div id="loadingSpinner" class="loading-spinner" style="display:none;">
+                <div class="spinner"></div>
+                <p>Analyzing patient data...</p>
+            </div>
+
+            <!-- Results Section -->
+            <div id="resultSection" class="result-section" style="display:none;">
+                <div class="result-card">
+                    <div class="result-header">
+                        <i class="fas fa-clipboard-check"></i>
+                        <h2>Risk Assessment Result</h2>
+                    </div>
+                    <div id="predictionResult" class="prediction-result"></div>
+                    
+                    <!-- Explainability Section -->
+                    <div id="explanationSection" style="margin-top: 25px; display:none;">
+                        <h3 class="explanation-title">
+                            <i class="fas fa-info-circle"></i> Clinical Insights
+                        </h3>
+                        <div id="explanation"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <script>
+        // Normal ranges for each field
+        const normalRanges = {
+            // Vital Signs (tight normal ranges)
+            'HR': { min: 60, max: 100, label: 'beats/min' },
+            'O2Sat': { min: 95, max: 100, label: '%' },
+            'Temp': { min: 36.5, max: 37.5, label: '°C' },
+            'SBP': { min: 90, max: 120, label: 'mmHg' },
+            'MAP': { min: 70, max: 100, label: 'mmHg' },
+            'DBP': { min: 60, max: 80, label: 'mmHg' },
+            'Resp': { min: 12, max: 20, label: 'breaths/min' },
+            
+            // Laboratory Values (tight normal ranges)
+            'BaseExcess': { min: -3, max: 3, label: 'mmol/L' },
+            'HCO3': { min: 22, max: 26, label: 'mmol/L' },
+            'FiO2': { min: 21, max: 100, label: '%' },
+            'PaCO2': { min: 35, max: 45, label: 'mmHg' },
+            'SaO2': { min: 95, max: 100, label: '%' },
+            'Creatinine': { min: 0.7, max: 1.3, label: 'mg/dL' },
+            'Bilirubin_direct': { min: 0.0, max: 0.3, label: 'mg/dL' },
+            'Glucose': { min: 70, max: 100, label: 'mg/dL' },
+            'Lactate': { min: 0.5, max: 2.0, label: 'mmol/L' },
+            'Magnesium': { min: 1.7, max: 2.2, label: 'mg/dL' },
+            'Phosphate': { min: 2.5, max: 4.5, label: 'mg/dL' },
+            'Bilirubin_total': { min: 0.1, max: 1.2, label: 'mg/dL' },
+            'Hgb': { min: 13.5, max: 17.5, label: 'g/dL' },
+            'WBC': { min: 4.5, max: 11, label: 'K/µL' },
+            'Fibrinogen': { min: 200, max: 400, label: 'mg/dL' },
+            'Platelets': { min: 150, max: 400, label: 'K/µL' },
+            
+            // Demographics
+            'Age': { min: 18, max: 90, label: 'years' },
+            'Gender': { min: 0, max: 1, label: '', isInteger: true },
+            'HospAdmTime': { min: 0, max: 72, label: 'hours' },
+            'ICULOS': { min: 0, max: 120, label: 'hours' },
+            
+            // Abnormal value ranges (used only for abnormal generation)
+            'HR_abnormal': { min: 30, max: 180, label: 'beats/min' },
+            'Temp_abnormal': { min: 35, max: 41, label: '°C' },
+            'SBP_abnormal': { min: 50, max: 250, label: 'mmHg' },
+            'MAP_abnormal': { min: 40, max: 180, label: 'mmHg' },
+            'DBP_abnormal': { min: 30, max: 150, label: 'mmHg' },
+            'Resp_abnormal': { min: 5, max: 60, label: 'breaths/min' },
+            'Glucose_abnormal': { min: 40, max: 500, label: 'mg/dL' },
+            'WBC_abnormal': { min: 1, max: 150, label: 'K/µL' },
+            'Creatinine_abnormal': { min: 0.3, max: 8, label: 'mg/dL' },
+            'Lactate_abnormal': { min: 0.3, max: 20, label: 'mmol/L' },
+            'Bilirubin_direct_abnormal': { min: 0, max: 5, label: 'mg/dL' },
+            'Bilirubin_total_abnormal': { min: 0, max: 8, label: 'mg/dL' },
+            'Platelets_abnormal': { min: 10, max: 800, label: 'K/µL' },
+            'Hgb_abnormal': { min: 4, max: 25, label: 'g/dL' },
+            'Magnesium_abnormal': { min: 0.5, max: 4.5, label: 'mg/dL' },
+            'Phosphate_abnormal': { min: 0.5, max: 10, label: 'mg/dL' },
+            'Fibrinogen_abnormal': { min: 50, max: 800, label: 'mg/dL' },
+            'BaseExcess_abnormal': { min: -15, max: 15, label: 'mmol/L' },
+            'HCO3_abnormal': { min: 8, max: 40, label: 'mmol/L' },
+            'PaCO2_abnormal': { min: 15, max: 90, label: 'mmHg' }
+        };
+
+        // Track number of times random values are generated
+        let randomGenerationCount = 0;
+
+        function generateRandomValues() {
+            randomGenerationCount++;
+            
+            // Get all input fields
+            const inputs = document.querySelectorAll('input[type="number"]');
+            
+            // Define vital signs and laboratory fields
+            const vitalFields = ['HR', 'O2Sat', 'Temp', 'SBP', 'MAP', 'DBP', 'Resp'];
+            const labFields = ['BaseExcess', 'HCO3', 'FiO2', 'PaCO2', 'SaO2', 'Creatinine', 
+                              'Bilirubin_direct', 'Glucose', 'Lactate', 'Magnesium', 'Phosphate', 
+                              'Bilirubin_total', 'Hgb', 'WBC', 'Fibrinogen', 'Platelets'];
+            const demoFields = ['Age', 'Gender', 'HospAdmTime', 'ICULOS'];
+            
+            // Alternate between HIGH SEPSIS RISK (odd clicks) and LOW SEPSIS RISK (even clicks)
+            const isHighRiskCase = randomGenerationCount % 2 === 1;
+            
+            let abnormalVitalCount, abnormalLabCount;
+            
+            if (isHighRiskCase) {
+                // HIGH SEPSIS RISK: Many abnormal values (more severe indicators)
+                abnormalVitalCount = 4;  // 4 out of 7 vitals abnormal
+                abnormalLabCount = 7;    // 7 out of 16 labs abnormal
+            } else {
+                // LOW SEPSIS RISK: Few abnormal values (mostly normal)
+                abnormalVitalCount = 0;  // 0 vitals abnormal
+                abnormalLabCount = 1;    // Only 1 lab abnormal
+            }
+            
+            // Select random vital fields to be abnormal
+            const abnormalVitalFields = vitalFields.sort(() => Math.random() - 0.5).slice(0, abnormalVitalCount);
+            
+            // Select random lab fields to be abnormal
+            const abnormalLabFields = labFields.sort(() => Math.random() - 0.5).slice(0, abnormalLabCount);
+            
+            // Generate all values
+            inputs.forEach(input => {
+                const fieldName = input.name;
+                let result;
+                
+                if (fieldName === 'HospAdmTime' || fieldName === 'ICULOS') {
+                    // For hours fields, ensure they're in range 5-15
+                    result = {
+                        value: parseFloat((Math.random() * 10 + 5).toFixed(2)),
+                        isAbnormal: false
+                    };
+                } else if (fieldName === 'Age') {
+                    // Age: 18-90
+                    result = {
+                        value: Math.round(Math.random() * 72 + 18),
+                        isAbnormal: false
+                    };
+                } else if (fieldName === 'Gender') {
+                    // Gender: 0 or 1
+                    result = {
+                        value: Math.round(Math.random()),
+                        isAbnormal: false
+                    };
+                } else if (abnormalVitalFields.includes(fieldName)) {
+                    // Force abnormal for selected vital fields
+                    result = generateAbnormalValue(fieldName);
+                } else if (abnormalLabFields.includes(fieldName)) {
+                    // Force abnormal for selected lab fields
+                    result = generateAbnormalValue(fieldName);
+                } else {
+                    // Generate normal values for the rest
+                    result = generateNormalValue(fieldName);
+                }
+                
+                if (result && result.value !== '') {
+                    input.value = result.value;
+
+                    // Find the label and add asterisk if abnormal
+                    const inputField = input.closest('.input-field');
+                    if (inputField) {
+                        const label = inputField.querySelector('label');
+                        if (label) {
+                            // Remove existing asterisk
+                            label.textContent = label.textContent.replace(' *', '');
+                            
+                            // Add asterisk if abnormal
+                            if (result.isAbnormal) {
+                                label.textContent += ' *';
+                                label.style.color = '#ff9f43';
+                            } else {
+                                label.style.color = '#ffd700';
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Show a notification indicating the case type
+            const caseType = isHighRiskCase ? '🔴 HIGH SEPSIS RISK' : '🟢 LOW SEPSIS RISK';
+            showNotification(`Case ${randomGenerationCount}: ${caseType}`);
+            console.log(`Generated Case ${randomGenerationCount}: ${caseType}`);
+        }
+
+        function generateNormalValue(fieldName) {
+            const range = normalRanges[fieldName];
+            if (!range) return '';
+
+            let value = range.min + (Math.random() * (range.max - range.min));
+
+            if (range.isInteger) {
+                value = Math.round(value);
+            } else {
+                value = parseFloat(value.toFixed(2));
+            }
+
+            return { value, isAbnormal: false };
+        }
+
+        function generateAbnormalValue(fieldName) {
+            // Try to use abnormal range if available, otherwise use normal range offset
+            const abnormalKey = fieldName + '_abnormal';
+            const range = normalRanges[abnormalKey] || normalRanges[fieldName];
+            if (!range) return '';
+
+            let value;
+            
+            // If we have abnormal range, generate from it
+            if (normalRanges[abnormalKey]) {
+                const abnormalRange = normalRanges[abnormalKey];
+                if (Math.random() < 0.5) {
+                    // Below normal
+                    value = abnormalRange.min + (Math.random() * (range.min - abnormalRange.min) * 0.8);
+                } else {
+                    // Above normal
+                    value = range.max + (Math.random() * (abnormalRange.max - range.max) * 0.8);
+                }
+            } else {
+                // Fallback: generate value outside normal range
+                if (Math.random() < 0.5) {
+                    // Below normal
+                    value = range.min - (Math.random() * (range.max - range.min) * 0.3);
+                } else {
+                    // Above normal
+                    value = range.max + (Math.random() * (range.max - range.min) * 0.3);
+                }
+            }
+
+            // Cap percentage-based fields at max 100
+            if ((fieldName === 'O2Sat' || fieldName === 'SaO2' || fieldName === 'FiO2') && value > 100) {
+                value = 100;
+            }
+            
+            // Ensure other fields don't exceed their max constraints
+            const fieldMax = {
+                'HR': 250, 'Temp': 42, 'SBP': 300, 'MAP': 200, 'DBP': 150, 'Resp': 100,
+                'BaseExcess': 15, 'HCO3': 40, 'PaCO2': 90, 'Creatinine': 8, 'Glucose': 500,
+                'Lactate': 20, 'Magnesium': 4.5, 'Phosphate': 10, 'Bilirubin_direct': 5,
+                'Bilirubin_total': 8, 'Hgb': 25, 'WBC': 150, 'Fibrinogen': 800, 'Platelets': 800
+            };
+            
+            if (fieldMax[fieldName] && value > fieldMax[fieldName]) {
+                value = fieldMax[fieldName];
+            }
+
+            if (range.isInteger) {
+                value = Math.round(value);
+            } else {
+                value = parseFloat(value.toFixed(2));
+            }
+
+            return { value, isAbnormal: true };
+        }
+
+        function showNotification(message) {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.innerHTML = `
+                <i class="fas fa-info-circle"></i> ${message}
+            `;
+            notification.style.cssText = `
+                position: fixed;
+                top: 100px;
+                right: 20px;
+                background: rgba(255, 215, 0, 0.1);
+                border: 2px solid #ffd700;
+                border-radius: 10px;
+                padding: 15px 20px;
+                color: #ffd700;
+                font-weight: bold;
+                z-index: 10000;
+                animation: slideIn 0.5s ease-out;
+                max-width: 350px;
+            `;
+
+            document.body.appendChild(notification);
+
+            // Remove notification after 4 seconds
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.5s ease-out';
+                setTimeout(() => {
+                    notification.remove();
+                }, 500);
+            }, 4000);
+        }
+
+        function resetForm() {
+            // Reset all inputs
+            document.getElementById('predictionForm').reset();
+            
+            // Remove asterisks and reset label colors
+            const labels = document.querySelectorAll('label');
+            labels.forEach(label => {
+                label.textContent = label.textContent.replace(' *', '');
+                label.style.color = '#ffd700';
+            });
+
+            localStorage.removeItem('formValues');
+            showNotification('Form cleared and labels reset.');
+        }
+
+        // Form submission with loading animation
+        document.getElementById('predictionForm').addEventListener('submit', function(e) {
+            const formData = new FormData(this);
+            const values = {};
+            for (let [key, value] of formData.entries()) {
+                values[key] = value;
+            }
+            localStorage.setItem('formValues', JSON.stringify(values));
+            
+            // Show loading spinner
+            document.getElementById('loadingSpinner').style.display = 'flex';
+            document.getElementById('resultSection').style.display = 'none';
+        });
+
+        // Load form values from localStorage
+        window.addEventListener('load', function() {
+            // Always start with empty form
+            localStorage.removeItem('formValues');
+            document.getElementById('predictionForm').reset();
+            
+            // Reset all label colors
+            const labels = document.querySelectorAll('label');
+            labels.forEach(label => {
+                label.textContent = label.textContent.replace(' *', '');
+                label.style.color = '#ffd700';
+            });
+
+            // Check if there's a prediction result
+            const predictionDiv = document.getElementById('predictionResult');
+            if (predictionDiv && predictionDiv.innerHTML.trim() !== '') {
+                document.getElementById('loadingSpinner').style.display = 'none';
+                document.getElementById('resultSection').style.display = 'block';
+                predictionDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else {
+                document.getElementById('loadingSpinner').style.display = 'none';
+            }
+        });
+
+        // Add CSS for animations
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from {
+                    transform: translateX(400px);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes slideOut {
+                from {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+                to {
+                    transform: translateX(400px);
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+
+    <!-- Hidden div to store explanation from Flask (avoids JS escaping issues) -->
+    {% if explanation %}
+    <div id="hiddenExplanation" style="display: none;">{{ explanation | safe }}</div>
+    {% endif %}
+
+    <!-- Inline result injection from Flask -->
+    <script>
+        {% if prediction_text %}
+        document.addEventListener('DOMContentLoaded', function() {
+            const predictionDiv = document.getElementById('predictionResult');
+            
+            // Get values from Flask/Jinja2
+            const isNormalState = {% if is_normal_state is defined and is_normal_state %}true{% else %}false{% endif %};
+            const confidence = "{{ confidence | safe }}";
+            const riskLevel = "{{ risk_level | safe }}";
+            const phase3RiskRaw = "{{ phase3_risk | default('') }}";
+            
+            // Determine risk class
+            const isHighRisk = riskLevel.includes('High') || riskLevel.includes('Critical');
+            const riskClass = isHighRisk ? 'high-risk' : 'low-risk';
+            
+            let resultHTML;
+            
+            if (isNormalState) {
+                // NORMAL STATE: Show simplified result without 6-hour prediction
+                resultHTML = `
+                    <div class="prediction-container">
+                        <div class="risk-card current-risk" style="flex: 1; max-width: 100%;">
+                            <div class="card-header-small">
+                                <i class="fas fa-heartbeat"></i>
+                                <span class="time-label">CLINICAL ASSESSMENT</span>
+                            </div>
+                            <div class="risk-value-large" style="color: #51cf66; font-size: 1.5em;">
+                                ✓ Not Prone to Sepsis
+                            </div>
+                            <div class="risk-label">Current Status</div>
+                            <div class="risk-status low-risk" style="background: rgba(81, 207, 102, 0.2); color: #51cf66;">
+                                ${riskLevel}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="clinical-details-card">
+                        <div class="details-header">
+                            <i class="fas fa-stethoscope"></i>
+                            <h4>Clinical Assessment</h4>
+                        </div>
+                        <div class="details-content" id="explanationContent"></div>
+                    </div>
+                `;
+            } else {
+                // ABNORMAL STATE: Show full result with 6-hour prediction
+                resultHTML = `
+                    <div class="prediction-container">
+                        <div class="risk-card current-risk">
+                            <div class="card-header-small">
+                                <i class="fas fa-heartbeat"></i>
+                                <span class="time-label">NOW</span>
+                            </div>
+                            <div class="risk-value-large">${confidence}</div>
+                            <div class="risk-label">Current Sepsis Risk</div>
+                            <div class="risk-status ${riskClass}">
+                                ${riskLevel}
+                            </div>
+                        </div>
+
+                        <div class="prediction-arrow">
+                            <i class="fas fa-arrow-right"></i>
+                        </div>
+
+                        <div class="risk-card future-risk">
+                            <div class="card-header-small future">
+                                <i class="fas fa-clipboard-check"></i>
+                                <span class="time-label">STATUS</span>
+                            </div>
+                            <div class="risk-value-large" id="phase3RiskValue">${riskLevel.includes('Prone') ? 'At Risk' : 'Stable'}</div>
+                            <div class="risk-label">Clinical Status</div>
+                            <div class="risk-status" id="phase3RiskStatus" style="background: rgba(81, 207, 102, 0.2); color: #51cf66;">${riskLevel.includes('Prone') ? 'Requires Attention' : 'Continue Monitoring'}</div>
+                        </div>
+                    </div>
+
+                    <div class="timeline-section">
+                        <div class="timeline-header">
+                            <i class="fas fa-hourglass-half"></i>
+                            <h4>Risk Monitoring Timeline</h4>
+                        </div>
+                        <div class="timeline-visualization">
+                            <div class="timeline-point current">
+                                <div class="timeline-circle">Now</div>
+                                <div class="timeline-text">Current Assessment</div>
+                            </div>
+                            <div class="timeline-line"></div>
+                            <div class="timeline-point future">
+                                <div class="timeline-circle"><i class="fas fa-sync-alt"></i></div>
+                                <div class="timeline-text">Continuous Monitoring</div>
+                            </div>
+                        </div>
+                        <div class="timeline-insight">
+                            <i class="fas fa-info-circle"></i>
+                            <p><strong>Note:</strong> This system provides current sepsis risk assessment based on vital signs and laboratory values. Regular re-evaluation is recommended for ongoing monitoring.</p>
+                        </div>
+                    </div>
+
+                    <div class="clinical-details-card">
+                        <div class="details-header">
+                            <i class="fas fa-stethoscope"></i>
+                            <h4>Clinical Assessment</h4>
+                        </div>
+                        <div class="details-content" id="explanationContent"></div>
+                    </div>
+                `;
+            }
+            
+            predictionDiv.innerHTML = resultHTML;
+            
+            // Set explanation content safely - get from hidden template div
+            const explanationDiv = document.getElementById('explanationContent');
+            const hiddenExplanation = document.getElementById('hiddenExplanation');
+            if (explanationDiv && hiddenExplanation) {
+                explanationDiv.innerHTML = hiddenExplanation.innerHTML;
+            }
+            
+            // Update clinical status card based on risk level
+            if (!isNormalState) {
+                const statusValueDiv = document.getElementById('phase3RiskValue');
+                const statusDiv = document.getElementById('phase3RiskStatus');
+                
+                if (statusValueDiv && statusDiv) {
+                    // Determine if patient is prone to sepsis based on risk level
+                    const isProne = riskLevel.toLowerCase().includes('prone') || 
+                                   riskLevel.toLowerCase().includes('high') || 
+                                   riskLevel.toLowerCase().includes('critical');
+                    
+                    if (isProne) {
+                        statusValueDiv.textContent = 'At Risk';
+                        statusDiv.textContent = 'Requires Attention';
+                        statusDiv.style.background = 'rgba(255, 107, 107, 0.2)';
+                        statusDiv.style.color = '#ff6b6b';
+                    } else {
+                        statusValueDiv.textContent = 'Stable';
+                        statusDiv.textContent = 'Continue Monitoring';
+                        statusDiv.style.background = 'rgba(81, 207, 102, 0.2)';
+                        statusDiv.style.color = '#51cf66';
+                    }
+                }
+            }
+            
+            document.getElementById('resultSection').style.display = 'block';
+            document.getElementById('loadingSpinner').style.display = 'none';
+            predictionDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        {% endif %}
+    </script>
+</body>
+</html>
