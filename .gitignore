@@ -16,9 +16,9 @@ ENV/
 .vscode/
 .idea/
 
-# Model files (large)
-*.h5
-*.pkl
+# Model files (keep pkl for this project)
+# *.h5
+# *.pkl
 
 # OS
 .DS_Store
