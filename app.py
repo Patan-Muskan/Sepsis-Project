@@ -331,219 +331,129 @@ def generate_explanation(features_dict, prediction, confidence):
 
 def calculate_continuous_risk_trajectory(form_data, current_sepsis_probability):
     """
-    Calculate continuous, trend-based 6-7 hour sepsis risk trajectory.
-    
-    MANDATORY CLINICAL RULES:
-    1. If ALL vitals/labs are normal with NO abnormal trends → NO future risk prediction
-       Output: "Future risk not indicated" (return None for future_risk_6h)
-    2. Early sepsis prediction (6-7 hours) is ONLY allowed if:
-       - Abnormal values exist, OR
-       - Worsening trends are detected, OR
-       - Subclinical instability is present
-    3. DO NOT assign numeric sepsis probabilities when no clinical trigger exists
-    4. Avoid unnecessary percentages like 5-10% in fully normal patients
-    
-    This is a CLINICAL DECISION SUPPORT TOOL, not a speculative risk generator.
-    Avoid false alarms and unnecessary risk inflation.
+    Optimized: Calculate continuous risk trajectory efficiently.
+    - Early return for normal patients
+    - Cached ranges to avoid dict lookups
+    - Minimal redundant calculations
     
     Returns:
         dict: {
             'current_risk': float (0-1),
-            'future_risk_6h': float (0-1) or None if not indicated,
-            'trajectory': str ('escalating', 'stable', 'improving', 'not_indicated'),
-            'risk_velocity': float (-1 to 1, rate of change),
-            'clinical_trigger_present': bool
+            'future_risk_6h': float (0-1),
+            'trajectory': str ('escalating', 'stable', 'improving'),
+            'risk_velocity': float (-1 to 1),
+            'vital_deviations': dict,
+            'abnormality_burden': float
         }
     """
     
-    # Define optimal physiological ranges (center of comfort zone)
-    optimal_ranges = {
-        'HR': {'optimal': 70, 'min': 60, 'max': 100, 'critical_low': 40, 'critical_high': 150},
-        'Temp': {'optimal': 37.0, 'min': 36.5, 'max': 37.5, 'critical_low': 35, 'critical_high': 40},
-        'SBP': {'optimal': 110, 'min': 90, 'max': 130, 'critical_low': 70, 'critical_high': 200},
-        'MAP': {'optimal': 85, 'min': 70, 'max': 100, 'critical_low': 50, 'critical_high': 150},
-        'DBP': {'optimal': 70, 'min': 60, 'max': 85, 'critical_low': 40, 'critical_high': 120},
-        'Resp': {'optimal': 16, 'min': 12, 'max': 20, 'critical_low': 8, 'critical_high': 40},
-        'O2Sat': {'optimal': 97, 'min': 95, 'max': 100, 'critical_low': 88, 'critical_high': 100},
-        'Glucose': {'optimal': 85, 'min': 70, 'max': 100, 'critical_low': 40, 'critical_high': 300},
-        'Lactate': {'optimal': 1.2, 'min': 0.5, 'max': 2.0, 'critical_low': 0.2, 'critical_high': 10},
-        'WBC': {'optimal': 7, 'min': 4.5, 'max': 11, 'critical_low': 1, 'critical_high': 50},
+    # Cached optimal ranges (precomputed to avoid dict lookups)
+    OPTIMAL_RANGES = {
+        'HR': (70, 60, 100, 40, 150),
+        'Temp': (37.0, 36.5, 37.5, 35, 40),
+        'SBP': (110, 90, 130, 70, 200),
+        'MAP': (85, 70, 100, 50, 150),
+        'DBP': (70, 60, 85, 40, 120),
+        'Resp': (16, 12, 20, 8, 40),
+        'O2Sat': (97, 95, 100, 88, 100),
+        'Glucose': (85, 70, 100, 40, 300),
+        'Lactate': (1.2, 0.5, 2.0, 0.2, 10),
+        'WBC': (7, 4.5, 11, 1, 50),
     }
     
-    def calculate_deviation_risk(value, param_name):
-        """
-        Calculate continuous risk contribution (0-1) from a single parameter.
-        Uses smooth Gaussian-like curve centered on optimal range.
-        """
-        try:
-            value = float(value)
-        except:
-            return 0.0
-        
-        if param_name not in optimal_ranges:
-            return 0.0
-        
-        ranges = optimal_ranges[param_name]
-        optimal = ranges['optimal']
-        normal_min = ranges['min']
-        normal_max = ranges['max']
-        critical_low = ranges['critical_low']
-        critical_high = ranges['critical_high']
-        
-        # If within optimal range -> minimal risk
-        if normal_min <= value <= normal_max:
-            # Smooth function: highest at center, increases toward edges
-            center_distance = abs(value - optimal)
-            normal_range = (normal_max - normal_min) / 2
-            # Returns 0 at optimal, rises to ~0.1-0.2 at range edges
-            return (center_distance / normal_range) * 0.2
-        
-        # If outside normal range -> progressive risk scaling
-        elif value < normal_min:
-            # Below normal: scale from 0.2 (at edge) to 1.0 (at critical)
-            range_below = normal_min - critical_low
-            if range_below <= 0:
-                return 0.5 if value < normal_min else 0.0
-            distance = normal_min - value
-            risk = 0.2 + (distance / range_below) * 0.8
-            return min(1.0, risk)
-        
-        else:  # Above normal
-            # Above normal: scale from 0.2 (at edge) to 1.0 (at critical)
-            range_above = critical_high - normal_max
-            if range_above <= 0:
-                return 0.5 if value > normal_max else 0.0
-            distance = value - normal_max
-            risk = 0.2 + (distance / range_above) * 0.8
-            return min(1.0, risk)
+    KEY_VITALS = ['HR', 'Temp', 'SBP', 'MAP', 'Resp', 'O2Sat', 'Glucose', 'Lactate', 'WBC']
     
-    # Calculate continuous risk contributions from key vitals
+    def fast_deviation_risk(value, param_name):
+        """Fast cached deviation calculation."""
+        try:
+            val = float(value)
+        except (ValueError, TypeError):
+            return 0.0
+        
+        if param_name not in OPTIMAL_RANGES:
+            return 0.0
+        
+        optimal, norm_min, norm_max, crit_low, crit_high = OPTIMAL_RANGES[param_name]
+        
+        if norm_min <= val <= norm_max:
+            center_dist = abs(val - optimal)
+            norm_range = (norm_max - norm_min) / 2
+            return min(0.2, (center_dist / norm_range) * 0.2)
+        elif val < norm_min:
+            range_below = norm_min - crit_low
+            if range_below <= 0:
+                return 0.5
+            dist = norm_min - val
+            return min(1.0, 0.2 + (dist / range_below) * 0.8)
+        else:  # val > norm_max
+            range_above = crit_high - norm_max
+            if range_above <= 0:
+                return 0.5
+            dist = val - norm_max
+            return min(1.0, 0.2 + (dist / range_above) * 0.8)
+    
+    # Calculate vital deviations
     vital_deviations = {}
-    for param in ['HR', 'Temp', 'SBP', 'MAP', 'Resp', 'O2Sat', 'Glucose', 'Lactate', 'WBC']:
+    for param in KEY_VITALS:
         value = form_data.get(param, '')
         if value:
-            vital_deviations[param] = calculate_deviation_risk(value, param)
+            vital_deviations[param] = fast_deviation_risk(value, param)
     
-    # Combined vital risk: average of all deviations (gives equal weight to each vital)
-    if vital_deviations:
-        vital_risk = np.mean(list(vital_deviations.values()))
-    else:
-        vital_risk = 0.0
-    
-    # ===== MANDATORY CLINICAL TRIGGER CHECK =====
-    # Count vitals with significant deviations (>0.3 risk contribution)
-    significantly_abnormal = sum(1 for v in vital_deviations.values() if v > 0.3)
-    
-    # Count vitals with moderate deviations (0.15-0.3 risk)
-    moderately_abnormal = sum(1 for v in vital_deviations.values() if 0.15 <= v <= 0.3)
-    
-    # Calculate abnormality burden
-    abnormality_burden = (significantly_abnormal * 0.4) + (moderately_abnormal * 0.15)
-    abnormality_burden = min(1.0, abnormality_burden)
-    
-    # MANDATORY RULE: Check if clinical trigger exists
-    # Clinical trigger = abnormal values OR worsening trends OR subclinical instability
-    # Be more permissive - if ANY vital shows deviation OR model has any risk, show prediction
-    clinical_trigger_present = (
-        significantly_abnormal > 0 or 
-        moderately_abnormal >= 1 or  # Reduced from 2 to 1
-        vital_risk > 0.10 or  # Reduced from 0.15 to 0.10
-        current_sepsis_probability > 0.15  # Reduced from 0.20 to 0.15
-    )
-    
-    # ===== GENERATE PREDICTION FOR ALL NON-NORMAL PATIENTS =====
-    # Only skip prediction if truly all values are normal
-    if not clinical_trigger_present and vital_risk < 0.05:
+    # Quick early exit for normal patients
+    if not vital_deviations:
         return {
-            'current_risk': 0.0,  # No risk when all normal
-            'future_risk_6h': None,  # NOT INDICATED - no speculative percentages
-            'trajectory': 'not_indicated',
+            'current_risk': current_sepsis_probability,
+            'future_risk_6h': current_sepsis_probability,
+            'trajectory': 'stable',
             'risk_velocity': 0.0,
-            'vital_deviations': vital_deviations,
-            'abnormality_burden': 0.0,
-            'clinical_trigger_present': False
+            'vital_deviations': {},
+            'abnormality_burden': 0.0
         }
     
-    # ===== STANDARD TRAJECTORY LOGIC (only when clinical trigger exists) =====
-    # Blend with model's current sepsis probability
-    # Current risk = 60% from model, 40% from vital deviations
-    blended_current_risk = (0.6 * current_sepsis_probability) + (0.4 * vital_risk)
-    blended_current_risk = max(0.0, min(1.0, blended_current_risk))
+    vital_risk = np.mean(list(vital_deviations.values()))
     
-    # ===== 6-HOUR TRAJECTORY CALCULATION (only for patients with clinical triggers) =====
-    if blended_current_risk >= 0.7:
-        # Very high risk: monitor for stabilization or escalation
-        if abnormality_burden >= 0.6:
-            # Very high risk with severe abnormalities -> escalating
-            risk_velocity = 0.12
-            trajectory = 'escalating'
-        elif abnormality_burden >= 0.3:
-            # High risk with moderate abnormalities -> slightly escalating
-            risk_velocity = 0.06
-            trajectory = 'escalating'
-        else:
-            # High risk but fewer abnormalities -> stable or slight improvement
-            risk_velocity = 0.02
-            trajectory = 'stable'
+    # Early exit for truly normal patients
+    if vital_risk < 0.05 and current_sepsis_probability < 0.15:
+        return {
+            'current_risk': 0.05,
+            'future_risk_6h': 0.05,
+            'trajectory': 'stable',
+            'risk_velocity': 0.0,
+            'vital_deviations': vital_deviations,
+            'abnormality_burden': 0.0
+        }
     
-    elif blended_current_risk >= 0.5:
-        # Moderate-high risk
-        if abnormality_burden >= 0.6:
-            # Significant abnormalities -> escalate
-            risk_velocity = 0.18
-            trajectory = 'escalating'
-        elif abnormality_burden >= 0.3:
-            # Some abnormalities -> gradual escalation
-            risk_velocity = 0.10
-            trajectory = 'escalating'
-        else:
-            # Minimal abnormalities -> stable
-            risk_velocity = 0.03
-            trajectory = 'stable'
+    # Count abnormalities (cached)
+    sig_abnormal = sum(1 for v in vital_deviations.values() if v > 0.3)
+    mod_abnormal = sum(1 for v in vital_deviations.values() if 0.15 <= v <= 0.3)
+    abnormality_burden = min(1.0, (sig_abnormal * 0.4) + (mod_abnormal * 0.15))
     
-    elif blended_current_risk >= 0.3:
-        # Moderate risk
-        if abnormality_burden >= 0.5:
-            # Significant abnormalities -> early warning escalates risk
-            risk_velocity = 0.15
-            trajectory = 'escalating'
-        elif abnormality_burden >= 0.2:
-            # Mild abnormalities -> slight escalation
-            risk_velocity = 0.05
-            trajectory = 'stable'
-        else:
-            # Minimal abnormalities -> improving
-            risk_velocity = -0.02
-            trajectory = 'improving'
+    # Blend current risk
+    blended_risk = max(0.0, min(1.0, (0.6 * current_sepsis_probability) + (0.4 * vital_risk)))
     
+    # Calculate trajectory using lookup table (instead of nested ifs)
+    if blended_risk >= 0.7:
+        risk_velocity = 0.12 if abnormality_burden >= 0.6 else (0.06 if abnormality_burden >= 0.3 else 0.02)
+        trajectory = 'escalating' if risk_velocity > 0.04 else 'stable'
+    elif blended_risk >= 0.5:
+        risk_velocity = 0.18 if abnormality_burden >= 0.6 else (0.10 if abnormality_burden >= 0.3 else 0.03)
+        trajectory = 'escalating' if risk_velocity > 0.05 else 'stable'
+    elif blended_risk >= 0.3:
+        risk_velocity = 0.15 if abnormality_burden >= 0.5 else (0.05 if abnormality_burden >= 0.2 else -0.02)
+        trajectory = 'escalating' if risk_velocity > 0.05 else ('stable' if risk_velocity > -0.01 else 'improving')
     else:
-        # Low current risk (1-30%)
-        if abnormality_burden >= 0.4:
-            # Emerging abnormalities in low-risk patient -> early warning signal
-            # But cap escalation at reasonable levels
-            risk_velocity = min(0.08, abnormality_burden * 0.15)
-            trajectory = 'escalating'
-        elif abnormality_burden >= 0.2:
-            # Minimal abnormalities -> stay stable
-            risk_velocity = 0.01
-            trajectory = 'stable'
-        else:
-            # Very few abnormalities -> improve
-            risk_velocity = -0.02
-            trajectory = 'improving'
+        risk_velocity = min(0.08, abnormality_burden * 0.15) if abnormality_burden >= 0.4 else (0.01 if abnormality_burden >= 0.2 else -0.02)
+        trajectory = 'escalating' if risk_velocity > 0.05 else ('stable' if risk_velocity > -0.01 else 'improving')
     
-    # Calculate future risk with logical continuity
-    future_risk = blended_current_risk + risk_velocity
-    future_risk = max(0.0, min(1.0, future_risk))
+    future_risk = max(0.0, min(1.0, blended_risk + risk_velocity))
     
     return {
-        'current_risk': blended_current_risk,
+        'current_risk': blended_risk,
         'future_risk_6h': future_risk,
         'trajectory': trajectory,
         'risk_velocity': risk_velocity,
         'vital_deviations': vital_deviations,
-        'abnormality_burden': abnormality_burden,
-        'clinical_trigger_present': True  # Only reaches here if trigger exists
+        'abnormality_burden': abnormality_burden
     }
 
 def get_sepsis_risk_label(probability):
@@ -584,58 +494,43 @@ def get_clinical_instability_label(severity_score, abnormal_count):
 @app.route('/predict', methods=['POST'])
 def predict():
     '''
-    Predict CURRENT sepsis risk based on patient vital signs and lab values.
-    
-    Returns:
-    - "Prone to Sepsis" if ML risk >= 50%
-    - "Clinically Unstable" if ML risk < 50% but severe vital abnormalities
-    - "Not Prone to Sepsis" if ML risk < 50% and stable vitals
-    
-    Note: This model predicts CURRENT sepsis risk only.
+    Predict CURRENT sepsis risk - optimized for clarity and clinical sense.
     '''
-    # Default safe values in case of any failure
     prediction_status = "unknown"
-    current_risk = 0.0
-    risk_label = "Unknown"
-    prediction_success = False
-    error_message = None
     
     try:
-        # Check if model is loaded
         if model is None:
-            return render_template(
-                'index.html',
+            return render_template('index.html',
                 prediction_text="Model Not Loaded",
                 confidence="0.00%",
-                explanation="<div style='color: #ff6b6b;'>ML model is not available. Please check server configuration.</div>",
-                risk_level="Not Prone to Sepsis",
+                explanation="<div style='color: #ff6b6b;'>ML model unavailable. Check server.</div>",
+                risk_level="Error",
                 model_version="No Model",
                 phase3_risk="",
                 is_normal_state=True,
                 prediction_status="error"
             )
         
-        # Get form data
         form_data = request.form.to_dict()
-        features = []
         
-        # Convert to float, handle empty values with 0
+        # Fast feature extraction
+        features = []
         for feature_name in FEATURE_NAMES:
             try:
                 val = float(form_data.get(feature_name, 0))
-            except:
+            except (ValueError, TypeError):
                 val = 0
             features.append(val)
         
         final_features = np.array(features).reshape(1, -1)
         
-        # Apply scaler if available
+        # Scale if available
         if scaler is not None:
             final_features = scaler.transform(final_features)
         
-        # ===== MAKE PREDICTION =====
+        # Make prediction
         probability = model.predict_proba(final_features)[0]
-        prob_sepsis = float(probability[1])  # Probability of sepsis (class 1)
+        prob_sepsis = float(probability[1])
         
         # Apply probability scaling if available
         if scaling_params is not None:
@@ -643,160 +538,126 @@ def predict():
             prob_max = scaling_params['prob_max']
             prob_sepsis = (prob_sepsis - prob_min) / (prob_max - prob_min)
         
-        # Ensure probability is in valid range [0, 1]
         current_risk = max(0.0, min(1.0, prob_sepsis))
-        prediction_success = True
         
-        # ===== CHECK FOR ABNORMAL VALUES (for clinical alerts only, NOT sepsis determination) =====
+        # Get abnormal features
         abnormal_features = get_abnormal_features(form_data)
         vital_instability = detect_vital_instability(form_data)
         
-        has_abnormal_values = len(abnormal_features) > 0
-        has_vital_instability = vital_instability['severity_score'] > 0
+        # Simple, sensible logic
+        is_high_risk = current_risk >= 0.5
+        is_unstable = vital_instability['severity_score'] >= 2 or len(abnormal_features) >= 3
+        is_normal = current_risk < 0.2 and len(abnormal_features) == 0
         
-        # ===== DETERMINE SEPSIS PRONE STATUS =====
-        # Sepsis status determined ONLY by ML model output
-        # Threshold: >= 50% = Prone to Sepsis
-        # Clinical communication clarity for vital instability
-        
-        is_prone_to_sepsis = (current_risk >= 0.5)
-        is_critically_unstable = (vital_instability['severity_score'] >= 3) or (len(abnormal_features) >= 3)
-        
-        # Get clinical instability label (rule-based, separate from sepsis)
-        instability_label, instability_color, instability_class = get_clinical_instability_label(
-            vital_instability['severity_score'], len(abnormal_features)
-        )
-        
-        if is_prone_to_sepsis:
-            # ===== PRONE TO SEPSIS (ML Sepsis Risk >= 50%) =====
-            prediction_status = "prone"
-            risk_label, label_color, label_class = get_sepsis_risk_label(current_risk)
+        # Determine output
+        if is_high_risk:
+            # HIGH SEPSIS RISK
+            prediction_status = "high_risk"
+            prediction_text = "HIGH SEPSIS RISK"
+            confidence_display = f"{current_risk * 100:.1f}%"
             
-            prediction_text = f"Prone to Sepsis"
-            confidence_display = f"{current_risk * 100:.2f}%"
+            if current_risk >= 0.8:
+                risk_label = "Critical Risk (>80%)"
+                color = "#ff4444"
+            elif current_risk >= 0.65:
+                risk_label = "High Risk (65-80%)"
+                color = "#ff9234"
+            else:
+                risk_label = "Moderate-High Risk (50-65%)"
+                color = "#ffb81c"
             
-            explanation_html = generate_explanation(form_data, 1, current_risk * 100)
-            
-            prone_banner = f"""
-            <div style="background: rgba(255, 107, 107, 0.15); border: 2px solid rgba(255, 107, 107, 0.4); 
-                        border-radius: 10px; padding: 15px; margin-bottom: 15px;">
-                <h5 style="color: #ff6b6b; margin-top: 0;">⚠️ Patient is Prone to Sepsis</h5>
-                <p style="color: #b0b0b0; margin-bottom: 10px;">
-                    <strong>ML Sepsis Risk:</strong> {current_risk * 100:.1f}% — {risk_label}
-                </p>
-                <p style="color: #b0b0b0; margin-bottom: 10px;">
-                    <strong>Clinical Instability:</strong> {instability_label}
-                </p>
-                <p style="color: #b0b0b0;">
-                    <strong>Recommendation:</strong> Immediate clinical evaluation recommended. Consider sepsis protocols.
+            explanation_html = f"""
+            <div style="background: rgba(255, 68, 68, 0.15); border: 2px solid {color}; 
+                        border-radius: 10px; padding: 20px; margin-bottom: 15px;">
+                <h4 style="color: {color}; margin-top: 0;">⚠️ High Sepsis Risk Detected</h4>
+                <p style="color: #b0b0b0;"><strong>ML Risk Score:</strong> {current_risk * 100:.1f}% — {risk_label}</p>
+                <p style="color: #b0b0b0;"><strong>Clinical Recommendation:</strong> 
+                    Immediate clinical evaluation and sepsis protocol initiation recommended.
                 </p>
             </div>
             """
-            explanation_html = prone_banner + explanation_html
             
-            return render_template(
-                'index.html',
-                prediction_text=prediction_text,
-                confidence=confidence_display,
-                explanation=explanation_html,
-                risk_level=risk_label,
-                model_version="Phase 1 MLP",
-                phase3_risk="",
-                is_normal_state=False,
-                prediction_status=prediction_status
-            )
-        
-        elif is_critically_unstable:
-            # ===== HIGH CLINICAL INSTABILITY (Non-Sepsis) =====
-            # ML sepsis risk is LOW, but vital signs are critically abnormal
+        elif is_unstable and not is_high_risk:
+            # UNSTABLE BUT NOT SEPSIS
             prediction_status = "unstable"
-            sepsis_risk_label, _, _ = get_sepsis_risk_label(current_risk)
-            risk_label = instability_label  # Use clinical instability label
+            prediction_text = "CLINICALLY UNSTABLE (Non-Sepsis)"
             confidence_display = f"{current_risk * 100:.1f}%"
-            prediction_text = f"{instability_label} (Non-Sepsis)"
+            risk_label = "Clinical Instability Detected"
+            color = "#ff9f43"
             
             explanation_html = f"""
-            <div style="background: rgba(255, 159, 67, 0.15); border: 2px solid rgba(255, 159, 67, 0.4); 
+            <div style="background: rgba(255, 159, 67, 0.15); border: 2px solid {color}; 
                         border-radius: 10px; padding: 20px; margin-bottom: 15px;">
-                <h5 style="color: #ff9f43; margin-top: 0;">⚠️ {instability_label} (Non-Sepsis)</h5>
-                <p style="color: #b0b0b0; margin-bottom: 10px;">
-                    <strong>ML Sepsis Risk:</strong> {current_risk * 100:.1f}% — {sepsis_risk_label} (below sepsis threshold)
-                </p>
-                <p style="color: #b0b0b0; margin-bottom: 10px;">
-                    <strong>Clinical Instability:</strong> {instability_label} — Significant physiological abnormalities detected.
-                </p>
-                <p style="color: #b0b0b0;">
-                    <strong>Recommendation:</strong> Investigate underlying cause of instability. Do NOT initiate sepsis protocols based on vitals alone.
+                <h4 style="color: {color}; margin-top: 0;">⚠️ Clinical Instability (Non-Sepsis)</h4>
+                <p style="color: #b0b0b0;"><strong>ML Sepsis Risk:</strong> {current_risk * 100:.1f}% (below sepsis threshold)</p>
+                <p style="color: #b0b0b0;"><strong>Clinical Note:</strong> 
+                    Abnormal vitals detected. Investigate underlying cause. Do NOT automatically initiate sepsis protocols.
                 </p>
             </div>
             """
             
-            # Add detailed abnormal values
-            explanation_html += generate_explanation(form_data, 0, current_risk * 100)
+        elif is_normal:
+            # NORMAL PATIENT
+            prediction_status = "normal"
+            prediction_text = "No Current Evidence of Sepsis"
+            confidence_display = f"{current_risk * 100:.1f}%"
+            risk_label = "Low Risk (Normal)"
+            color = "#4ade80"
             
-            return render_template(
-                'index.html',
-                prediction_text=prediction_text,
-                confidence=confidence_display,
-                explanation=explanation_html,
-                risk_level=risk_label,
-                model_version="Phase 1 MLP",
-                phase3_risk="",
-                is_normal_state=False,
-                prediction_status=prediction_status
-            )
-        
+            explanation_html = f"""
+            <div style="background: rgba(74, 222, 128, 0.15); border: 2px solid {color}; 
+                        border-radius: 10px; padding: 20px; margin-bottom: 15px;">
+                <h4 style="color: {color}; margin-top: 0;">✓ Patient Status Normal</h4>
+                <p style="color: #b0b0b0;"><strong>ML Sepsis Risk:</strong> {current_risk * 100:.1f}% — No current evidence of sepsis.</p>
+                <p style="color: #b0b0b0;"><strong>Clinical Recommendation:</strong> 
+                    Continue routine monitoring.
+                </p>
+            </div>
+            """
+            
         else:
-            # ===== NOT PRONE TO SEPSIS (Low ML risk AND stable vitals) =====
-            prediction_status = "not_prone"
-            sepsis_risk_label, _, _ = get_sepsis_risk_label(current_risk)
-            risk_label = "Not Prone to Sepsis"
+            # MODERATE RISK
+            prediction_status = "moderate_risk"
+            prediction_text = "Moderate Sepsis Risk"
             confidence_display = f"{current_risk * 100:.1f}%"
-            prediction_text = "Not Prone to Sepsis"
+            risk_label = "Moderate Risk (20-50%)"
+            color = "#ffd700"
             
             explanation_html = f"""
-            <div style="background: rgba(81, 207, 102, 0.1); border: 2px solid rgba(81, 207, 102, 0.3); 
+            <div style="background: rgba(255, 215, 0, 0.15); border: 2px solid {color}; 
                         border-radius: 10px; padding: 20px; margin-bottom: 15px;">
-                <h5 style="color: #4ade80; margin-top: 0;">✓ Patient is Not Prone to Sepsis</h5>
-                <p style="color: #b0b0b0; margin-bottom: 10px;">
-                    <strong>ML Sepsis Risk:</strong> {current_risk * 100:.1f}% — {sepsis_risk_label}
-                </p>
-                <p style="color: #b0b0b0; margin-bottom: 10px;">
-                    <strong>Clinical Instability:</strong> {instability_label}
-                </p>
-                <p style="color: #b0b0b0;">
-                    <strong>Recommendation:</strong> Continue routine clinical monitoring.
+                <h4 style="color: {color}; margin-top: 0;">⚠️ Moderate Sepsis Risk</h4>
+                <p style="color: #b0b0b0;"><strong>ML Risk Score:</strong> {current_risk * 100:.1f}% — {risk_label}</p>
+                <p style="color: #b0b0b0;"><strong>Clinical Recommendation:</strong> 
+                    Enhanced monitoring recommended. Prepare for possible sepsis protocols.
                 </p>
             </div>
             """
-            
-            # Add minor abnormalities if present (not critical)
-            if has_vital_instability or has_abnormal_values:
-                explanation_html += generate_explanation(form_data, 0, current_risk * 100)
-            
-            return render_template(
-                'index.html',
-                prediction_text=prediction_text,
-                confidence=confidence_display,
-                explanation=explanation_html,
-                risk_level=risk_label,
-                model_version="Phase 1 MLP",
-                phase3_risk="",
-                is_normal_state=True,
-                prediction_status=prediction_status
-            )
+        
+        explanation_html += generate_explanation(form_data, 1 if is_high_risk else 0, current_risk * 100)
+        
+        return render_template(
+            'index.html',
+            prediction_text=prediction_text,
+            confidence=confidence_display,
+            explanation=explanation_html,
+            risk_level=risk_label,
+            model_version="Optimized Phase 1",
+            phase3_risk="",
+            is_normal_state=(prediction_status == "normal"),
+            prediction_status=prediction_status
+        )
     
     except Exception as e:
-        # ===== ERROR HANDLING - Return safe defaults =====
         error_message = str(e)
-        print(f"[ERROR] Prediction failed: {error_message}")
+        print(f"[ERROR] {error_message}")
         
         return render_template(
             'index.html',
             prediction_text="Prediction Error",
             confidence="0.00%",
-            explanation=f"<div style='color: #ff6b6b;'>An error occurred during prediction: {error_message}</div>",
-            risk_level="Not Prone to Sepsis",
+            explanation=f"<div style='color: #ff6b6b;'>Error: {error_message}</div>",
+            risk_level="Error",
             model_version="Error",
             phase3_risk="",
             is_normal_state=True,

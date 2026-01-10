@@ -699,100 +699,63 @@
             const phase3RiskRaw = "{{ phase3_risk | default('') }}";
             
             // Determine risk class
-            const isHighRisk = riskLevel.includes('High') || riskLevel.includes('Critical');
+            const isHighRisk = riskLevel.includes('High') || riskLevel.includes('Critical') || riskLevel.includes('SEPSIS') || riskLevel.includes('Sepsis');
             const riskClass = isHighRisk ? 'high-risk' : 'low-risk';
             
-            let resultHTML;
+            // Optimized UI with risk level color coding
+            const riskPercentage = parseFloat(confidence);
+            let riskColor, riskBgColor, statusIcon;
             
-            if (isNormalState) {
-                // NORMAL STATE: Show simplified result without 6-hour prediction
-                resultHTML = `
-                    <div class="prediction-container">
-                        <div class="risk-card current-risk" style="flex: 1; max-width: 100%;">
-                            <div class="card-header-small">
-                                <i class="fas fa-heartbeat"></i>
-                                <span class="time-label">CLINICAL ASSESSMENT</span>
-                            </div>
-                            <div class="risk-value-large" style="color: #51cf66; font-size: 1.5em;">
-                                ✓ Not Prone to Sepsis
-                            </div>
-                            <div class="risk-label">Current Status</div>
-                            <div class="risk-status low-risk" style="background: rgba(81, 207, 102, 0.2); color: #51cf66;">
-                                ${riskLevel}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="clinical-details-card">
-                        <div class="details-header">
-                            <i class="fas fa-stethoscope"></i>
-                            <h4>Clinical Assessment</h4>
-                        </div>
-                        <div class="details-content" id="explanationContent"></div>
-                    </div>
-                `;
+            if (riskPercentage >= 75) {
+                riskColor = '#ff0000';
+                riskBgColor = 'rgba(255, 0, 0, 0.1)';
+                statusIcon = '🔴';
+            } else if (riskPercentage >= 50) {
+                riskColor = '#ff6b00';
+                riskBgColor = 'rgba(255, 107, 0, 0.1)';
+                statusIcon = '🟠';
+            } else if (riskPercentage >= 25) {
+                riskColor = '#ffb800';
+                riskBgColor = 'rgba(255, 184, 0, 0.1)';
+                statusIcon = '🟡';
             } else {
-                // ABNORMAL STATE: Show full result with 6-hour prediction
-                resultHTML = `
-                    <div class="prediction-container">
-                        <div class="risk-card current-risk">
-                            <div class="card-header-small">
-                                <i class="fas fa-heartbeat"></i>
-                                <span class="time-label">NOW</span>
-                            </div>
-                            <div class="risk-value-large">${confidence}</div>
-                            <div class="risk-label">Current Sepsis Risk</div>
-                            <div class="risk-status ${riskClass}">
-                                ${riskLevel}
-                            </div>
-                        </div>
-
-                        <div class="prediction-arrow">
-                            <i class="fas fa-arrow-right"></i>
-                        </div>
-
-                        <div class="risk-card future-risk">
-                            <div class="card-header-small future">
-                                <i class="fas fa-clipboard-check"></i>
-                                <span class="time-label">STATUS</span>
-                            </div>
-                            <div class="risk-value-large" id="phase3RiskValue">${riskLevel.includes('Prone') ? 'At Risk' : 'Stable'}</div>
-                            <div class="risk-label">Clinical Status</div>
-                            <div class="risk-status" id="phase3RiskStatus" style="background: rgba(81, 207, 102, 0.2); color: #51cf66;">${riskLevel.includes('Prone') ? 'Requires Attention' : 'Continue Monitoring'}</div>
-                        </div>
-                    </div>
-
-                    <div class="timeline-section">
-                        <div class="timeline-header">
-                            <i class="fas fa-hourglass-half"></i>
-                            <h4>Risk Monitoring Timeline</h4>
-                        </div>
-                        <div class="timeline-visualization">
-                            <div class="timeline-point current">
-                                <div class="timeline-circle">Now</div>
-                                <div class="timeline-text">Current Assessment</div>
-                            </div>
-                            <div class="timeline-line"></div>
-                            <div class="timeline-point future">
-                                <div class="timeline-circle"><i class="fas fa-sync-alt"></i></div>
-                                <div class="timeline-text">Continuous Monitoring</div>
-                            </div>
-                        </div>
-                        <div class="timeline-insight">
-                            <i class="fas fa-info-circle"></i>
-                            <p><strong>Note:</strong> This system provides current sepsis risk assessment based on vital signs and laboratory values. Regular re-evaluation is recommended for ongoing monitoring.</p>
-                        </div>
-                    </div>
-
-                    <div class="clinical-details-card">
-                        <div class="details-header">
-                            <i class="fas fa-stethoscope"></i>
-                            <h4>Clinical Assessment</h4>
-                        </div>
-                        <div class="details-content" id="explanationContent"></div>
-                    </div>
-                `;
+                riskColor = '#51cf66';
+                riskBgColor = 'rgba(81, 207, 102, 0.1)';
+                statusIcon = '🟢';
             }
+            
+            const resultHTML = `
+                <div class="prediction-container-optimized">
+                    <!-- Risk Gauge Card -->
+                    <div class="risk-gauge-card" style="background: ${riskBgColor}; border: 3px solid ${riskColor};">
+                        <div class="gauge-header">
+                            <span class="status-icon">${statusIcon}</span>
+                            <h3 class="gauge-title">SEPSIS RISK ASSESSMENT</h3>
+                        </div>
+                        
+                        <div class="risk-percentage-display" style="color: ${riskColor};">
+                            ${confidence}
+                        </div>
+                        
+                        <div class="progress-bar-container">
+                            <div class="progress-bar" style="width: ${riskPercentage}%; background: ${riskColor};"></div>
+                        </div>
+                        
+                        <div class="risk-status-label" style="color: ${riskColor};">
+                            ${riskLevel}
+                        </div>
+                    </div>
+                    
+                    <!-- Clinical Details -->
+                    <div class="clinical-details-optimized">
+                        <div class="details-header-optimized">
+                            <i class="fas fa-flask-vial"></i>
+                            <h4>Clinical Findings</h4>
+                        </div>
+                        <div class="details-content-optimized" id="explanationContent"></div>
+                    </div>
+                </div>
+            `;
             
             predictionDiv.innerHTML = resultHTML;
             
@@ -801,31 +764,6 @@
             const hiddenExplanation = document.getElementById('hiddenExplanation');
             if (explanationDiv && hiddenExplanation) {
                 explanationDiv.innerHTML = hiddenExplanation.innerHTML;
-            }
-            
-            // Update clinical status card based on risk level
-            if (!isNormalState) {
-                const statusValueDiv = document.getElementById('phase3RiskValue');
-                const statusDiv = document.getElementById('phase3RiskStatus');
-                
-                if (statusValueDiv && statusDiv) {
-                    // Determine if patient is prone to sepsis based on risk level
-                    const isProne = riskLevel.toLowerCase().includes('prone') || 
-                                   riskLevel.toLowerCase().includes('high') || 
-                                   riskLevel.toLowerCase().includes('critical');
-                    
-                    if (isProne) {
-                        statusValueDiv.textContent = 'At Risk';
-                        statusDiv.textContent = 'Requires Attention';
-                        statusDiv.style.background = 'rgba(255, 107, 107, 0.2)';
-                        statusDiv.style.color = '#ff6b6b';
-                    } else {
-                        statusValueDiv.textContent = 'Stable';
-                        statusDiv.textContent = 'Continue Monitoring';
-                        statusDiv.style.background = 'rgba(81, 207, 102, 0.2)';
-                        statusDiv.style.color = '#51cf66';
-                    }
-                }
             }
             
             document.getElementById('resultSection').style.display = 'block';
